@@ -6,8 +6,8 @@
     sharepoint_site: "PlatformSupportCommunity823-Team-Docs"
     document_library: "Shared Documents"
     sharepoint_url: "https://ascendionhub.sharepoint.com/sites/{{ sharepoint_site }}"
-    username: "your-email@yourcompany.com"
-    password: "your-sharepoint-password"
+    username: "akhil.tanguturu@ascendion.com"
+    password: "Balavenkatasubbaiah@2002"
     output_dir: "/mnt/data/sharepoint_docs"
     
   tasks:
