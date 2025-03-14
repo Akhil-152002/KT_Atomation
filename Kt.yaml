@@ -1,0 +1,56 @@
+---
+- name: Fetch Documents from SharePoint
+  hosts: localhost
+  gather_facts: no
+  vars:
+    sharepoint_site: "PlatformSupportCommunity823-Team-Docs"
+    document_library: "Shared Documents"
+    sharepoint_url: "https://ascendionhub.sharepoint.com/sites/{{ sharepoint_site }}"
+    username: "your-email@yourcompany.com"
+    password: "your-sharepoint-password"
+    output_dir: "/mnt/data/sharepoint_docs"
+    
+  tasks:
+    - name: Authenticate with SharePoint
+      uri:
+        url: "{{ sharepoint_url }}/_api/contextinfo"
+        method: POST
+        headers:
+          Accept: "application/json;odata=verbose"
+        user: "{{ username }}"
+        password: "{{ password }}"
+        force_basic_auth: yes
+        return_content: yes
+      register: auth_response
+
+    - name: Extract Form Digest Value
+      set_fact:
+        form_digest: "{{ auth_response.json.d.GetContextWebInformation.FormDigestValue }}"
+
+    - name: Get Document List
+      uri:
+        url: "{{ sharepoint_url }}/_api/web/GetFolderByServerRelativeUrl('{{ document_library }}')/Files"
+        method: GET
+        headers:
+          Accept: "application/json;odata=verbose"
+          X-RequestDigest: "{{ form_digest }}"
+        user: "{{ username }}"
+        password: "{{ password }}"
+        force_basic_auth: yes
+        return_content: yes
+      register: file_list
+
+    - name: Display Files in SharePoint
+      debug:
+        msg: "{{ file_list.json.d.results | map(attribute='Name') | list }}"
+
+    - name: Download Each Document
+      uri:
+        url: "{{ sharepoint_url }}/_api/web/GetFileByServerRelativeUrl('{{ document_library }}/{{ item.Name }}')/$value"
+        method: GET
+        user: "{{ username }}"
+        password: "{{ password }}"
+        force_basic_auth: yes
+        dest: "{{ output_dir }}/{{ item.Name }}"
+      loop: "{{ file_list.json.d.results }}"
+# KT_Atomation
