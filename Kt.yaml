@@ -1,54 +1,43 @@
 ---
-- name: Fetch Documents from SharePoint Online
+- name: Connect to SharePoint and Fetch Documents
   hosts: localhost
   gather_facts: no
   vars:
-    tenant_id: "195e8969-c853-47b4-83d0-36e044d83923"
-    client_id: "e2e46ae3-2dee-4eed-a074-ddffd760ab2b"
-    client_secret: "PQZ8Q~XSmMsU4dbgk2KyWMHK1h8X7ciD~H.1_csiT"
-    site_id: "ascendionhub.sharepoint.com:/sites/PlatformSupportCommunity823-Team-Docs"
+    sharepoint_url: "https://ascendionhub.sharepoint.com/sites/PlatformSupportCommunity823-Team-Docs"
     document_library: "Shared Documents"
-    output_dir: "/mnt/data/sharepoint_docs"
+    download_folder: "/tmp/sharepoint_files"
+    username: "akhil.tanguturu@ascendion.com"
+    password: "Balavenkatasubbaiah@2002"
 
   tasks:
-    - name: Get OAuth Token
-      uri:
-        url: "https://login.microsoftonline.com/{{ tenant_id }}/oauth2/v2.0/token"
-        method: POST
-        headers:
-          Content-Type: "application/x-www-form-urlencoded"
-        body: 
-          client_id: "{{ client_id }}"
-          client_secret: "{{ client_secret }}"
-          grant_type: "client_credentials"
-          scope: "https://graph.microsoft.com/.default"
-        body_format: form-urlencoded
-        return_content: yes
-      register: token_response
+    - name: Ensure download directory exists
+      ansible.builtin.file:
+        path: "{{ download_folder }}"
+        state: directory
+        mode: '0755'
 
-    - name: Extract Access Token
-      set_fact:
-        access_token: "{{ token_response.json.access_token }}"
-
-    - name: Get Document List from SharePoint
-      uri:
-        url: "https://graph.microsoft.com/v1.0/sites/{{ site_id }}/drive/root/children"
+    - name: Fetch SharePoint Access Token (Basic Auth)
+      ansible.builtin.uri:
+        url: "{{ sharepoint_url }}/_api/web/lists/getbytitle('{{ document_library }}')/items"
         method: GET
-        headers:
-          Authorization: "Bearer {{ access_token }}"
-          Accept: "application/json"
+        user: "{{ username }}"
+        password: "{{ password }}"
+        force_basic_auth: yes
         return_content: yes
-      register: file_list
+        headers:
+          Accept: "application/json;odata=verbose"
+      register: sharepoint_files
 
-    - name: Display Files in SharePoint
+    - name: Display SharePoint Files
       debug:
-        msg: "{{ file_list.json.value | map(attribute='name') | list }}"
+        var: sharepoint_files.json.d.results
 
-    - name: Download Each Document
-      uri:
-        url: "https://graph.microsoft.com/v1.0/sites/{{ site_id }}/drive/root:/{{ document_library }}/{{ item.name }}:/content"
-        method: GET
-        headers:
-          Authorization: "Bearer {{ access_token }}"
-        dest: "{{ output_dir }}/{{ item.name }}"
-      loop: "{{ file_list.json.value }}"
+    - name: Download Files from SharePoint
+      ansible.builtin.get_url:
+        url: "{{ item['FileRef']['__deferred']['uri'] }}"
+        dest: "{{ download_folder }}/{{ item['FileLeafRef'] }}"
+        url_username: "{{ username }}"
+        url_password: "{{ password }}"
+        force_basic_auth: yes
+      loop: "{{ sharepoint_files.json.d.results }}"
+      when: "'FileLeafRef' in item"
